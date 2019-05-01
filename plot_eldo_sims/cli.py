@@ -8,6 +8,7 @@ def cli(input):
     plot_flag = False
     data_flag = False
     counter = 0
+    print_legends = {}
 
     all_traces = []
 
@@ -17,12 +18,14 @@ def cli(input):
             counter = 0
             continue
 
-        if plot_flag and counter < 5:
-            counter += 1
-            continue
+        if plot_flag and "Print_Legend" in line:
+            legend = line.split()[-1]
+            header_name = line.split()[1][:-1]
+            print_legends[header_name] = legend
 
-        if plot_flag and counter == 5:
-            headers = line.split()
+        if plot_flag and "TIME" in line.split():
+            headers = [print_legends.get(header, header) for header in line.split()]
+
             trace = {header: [] for header in headers}
 
             plot_flag = False
