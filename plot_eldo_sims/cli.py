@@ -77,15 +77,15 @@ def cli(input):
 
             for signal in signals:
                 ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
-                plt.ylabel(plot["label"])
-                plt.xlabel("Time (s)")
-                plt.title("Transient simulation")
-                ax.grid(True, which="major")
-                ax.grid(True, which="minor", linestyle=":")
 
+            plt.ylabel(plot["label"])
+            plt.xlabel("Time (s)")
+            plt.title("Transient simulation")
+            ax.grid(True, which="major")
+            ax.grid(True, which="minor", linestyle=":")
+            ax.minorticks_on()
             ax.legend()
 
-    plt.minorticks_on()
     plt.legend()
     plt.show()
 
