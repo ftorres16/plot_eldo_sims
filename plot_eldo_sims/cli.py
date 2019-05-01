@@ -46,6 +46,18 @@ def cli(input):
 
     print(all_traces)
 
+    for trace in all_traces:
+        keys = list(trace.keys())
+        if 'TIME' in keys:
+            signals = [key for key in keys if key != 'TIME']
+            for signal in signals:
+                plt.plot(trace['TIME'], trace[signal], label=signal)
+                plt.xlabel('TIME')
+                plt.grid(True)
+
+    plt.legend()
+    plt.show()
+
 
 if __name__ == "__main__":
     cli()
