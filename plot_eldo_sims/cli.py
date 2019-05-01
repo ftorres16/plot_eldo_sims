@@ -65,16 +65,24 @@ def cli(input):
         {"traces": i_tran_traces, "label": "I (A)"},
     ]
     for plot in tran_plots:
+        if not plot["traces"]:
+            continue
+
+        fig, ax = plt.subplots()
         for trace in plot["traces"]:
             signals = [key for key in trace.keys() if key != "TIME"]
 
             for signal in signals:
-                plt.title("Transient simulation")
-                plt.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+                ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
                 plt.ylabel(plot["label"])
                 plt.xlabel("Time (s)")
-                plt.grid(True)
+                plt.title("Transient simulation")
+                ax.grid(True, which="major")
+                ax.grid(True, which="minor", linestyle=":")
 
+            ax.legend()
+
+    plt.minorticks_on()
     plt.legend()
     plt.show()
 
