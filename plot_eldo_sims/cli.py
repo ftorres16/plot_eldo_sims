@@ -34,7 +34,7 @@ def cli(input):
             continue
 
         if data_flag and counter == 3:
-            if 'Y' in line:
+            if "Y" in line:
                 data_flag = False
                 counter = 0
                 all_traces.append(trace)
@@ -46,13 +46,33 @@ def cli(input):
 
     print(all_traces)
 
-    for trace in all_traces:
-        keys = list(trace.keys())
-        if 'TIME' in keys:
-            signals = [key for key in keys if key != 'TIME']
+    # transient simulations plot
+    tran_traces = [trace for trace in all_traces if "TIME" in trace.keys()]
+
+    v_tran_traces = []
+    i_tran_traces = []
+    for trace in tran_traces:
+        for key in trace.keys():
+            if "V(" in key:
+                v_tran_traces.append(trace)
+                break
+            elif "I(" in key:
+                i_tran_traces.append(trace)
+                break
+
+    tran_plots = [
+        {"traces": v_tran_traces, "label": "V (V)"},
+        {"traces": i_tran_traces, "label": "I (A)"},
+    ]
+    for plot in tran_plots:
+        for trace in plot["traces"]:
+            signals = [key for key in trace.keys() if key != "TIME"]
+
             for signal in signals:
-                plt.plot(trace['TIME'], trace[signal], label=signal)
-                plt.xlabel('TIME')
+                plt.title("Transient simulation")
+                plt.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+                plt.ylabel(plot["label"])
+                plt.xlabel("Time (s)")
                 plt.grid(True)
 
     plt.legend()
