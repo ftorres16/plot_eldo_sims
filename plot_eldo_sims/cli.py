@@ -1,6 +1,8 @@
 import click
 import matplotlib.pyplot as plt
 
+from matplotlib.ticker import EngFormatter
+
 
 @click.command()
 @click.argument("input", type=click.File("r"))
@@ -64,8 +66,16 @@ def cli(input):
                 break
 
     tran_plots = [
-        {"traces": v_tran_traces, "label": "V (V)"},
-        {"traces": i_tran_traces, "label": "I (A)"},
+        {
+            "traces": v_tran_traces,
+            "label": "V (V)",
+            "y_axis_formatter": EngFormatter(unit="V"),
+        },
+        {
+            "traces": i_tran_traces,
+            "label": "I (A)",
+            "y_axis_formatter": EngFormatter(unit="A"),
+        },
     ]
     for plot in tran_plots:
         if not plot["traces"]:
@@ -80,6 +90,8 @@ def cli(input):
 
             plt.ylabel(plot["label"])
             plt.xlabel("Time (s)")
+            ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
+            ax.yaxis.set_major_formatter(plot["y_axis_formatter"])
             plt.title("Transient simulation")
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
