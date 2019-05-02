@@ -7,99 +7,127 @@ from matplotlib.ticker import EngFormatter
 @click.command()
 @click.argument("input", type=click.File("r"))
 def cli(input):
-    plot_flag = False
-    data_flag = False
-    counter = 0
-    print_legends = {}
-
-    all_traces = []
+    tran_flag = False
+    dc_flag = False
+    all_traces = {
+        "tran": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
+        "dc": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}}
+    }
 
     for line in input.readlines():
         if "TRANSIENT ANALYSIS" in line:
-            plot_flag = True
-            counter = 0
+            tran_flag = True
+            dc_flag = False
+            data_flag = False
+            print_legends = {}
             continue
 
-        if plot_flag and "Print_Legend" in line:
-            legend = line.split()[-1]
-            header_name = line.split()[1][:-1]
-            print_legends[header_name] = legend
+        elif "DC TRANSFER CURVES" in line:
+            tran_flag = False
+            dc_flag = True
+            data_flag = False
+            print_legends = {}
 
-        if plot_flag and "TIME" in line.split():
-            headers = [print_legends.get(header, header) for header in line.split()]
+        if tran_flag:
+            if "Print_Legend" in line:
+                legend = line.split()[-1]
+                header_name = line.split()[1][:-1]
+                print_legends[header_name] = legend
 
-            trace = {header: [] for header in headers}
+            elif "TIME" in line:
+                headers = [print_legends.get(header, header) for header in line.split()]
+                trace = {header: [] for header in headers}
 
-            plot_flag = False
-            data_flag = True
-            counter = 0
-
-        if data_flag and counter < 3:
-            counter += 1
-            continue
-
-        if data_flag and counter == 3:
-            if "Y" in line:
-                data_flag = False
+                data_flag = True
                 counter = 0
-                all_traces.append(trace)
-                continue
-            else:
-                values = line.split()
-                for header, value in zip(headers, values):
-                    trace[header].append(float(value))
+
+            elif data_flag and counter < 2:
+                counter += 1
+
+            elif data_flag and counter == 2:
+                if "Y" in line:
+                    tran_flag = False
+                    trace_type = headers[-1][0]
+                    all_traces["tran"][trace_type]["traces"].append(trace)
+                else:
+                    values = line.split()
+                    for header, value in zip(headers, values):
+                        trace[header].append(float(value))
+
+        elif dc_flag:
+            if "Print_Legend" in line:
+                legend = line.split()[-1]
+                header_name = line.split()[1][:-1]
+                print_legends[header_name] = legend
+
+            elif "PARAM" in line:
+                headers = [print_legends.get(header, header) for header in line.split()]
+                trace = {header: [] for header in headers}
+
+                data_flag = True
+                counter = 0
+
+            elif data_flag and counter < 2:
+                counter += 1
+
+            elif data_flag and counter == 2:
+                if "Y" in line:
+                    dc_flag = False
+                    trace_type = headers[-1][0]
+                    all_traces["dc"][trace_type]["traces"].append(trace)
+                else:
+                    values = line.split()
+                    for header, value in zip(headers, values):
+                        trace[header].append(float(value))
 
     print(all_traces)
 
-    # transient simulations plot
-    tran_traces = [trace for trace in all_traces if "TIME" in trace.keys()]
+    if all_traces["tran"]:
+        # transient simulations plot
+        for label, plot in all_traces["tran"].items():
+            if not plot["traces"]:
+                continue
 
-    v_tran_traces = []
-    i_tran_traces = []
-    for trace in tran_traces:
-        for key in trace.keys():
-            if "V(" in key:
-                v_tran_traces.append(trace)
-                break
-            elif "I(" in key:
-                i_tran_traces.append(trace)
-                break
+            fig, ax = plt.subplots()
+            for trace in plot["traces"]:
+                signals = [key for key in trace.keys() if key != "TIME"]
 
-    tran_plots = [
-        {
-            "traces": v_tran_traces,
-            "label": "V (V)",
-            "y_axis_formatter": EngFormatter(unit="V"),
-        },
-        {
-            "traces": i_tran_traces,
-            "label": "I (A)",
-            "y_axis_formatter": EngFormatter(unit="A"),
-        },
-    ]
-    for plot in tran_plots:
-        if not plot["traces"]:
-            continue
+                for signal in signals:
+                    ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
 
-        fig, ax = plt.subplots()
-        for trace in plot["traces"]:
-            signals = [key for key in trace.keys() if key != "TIME"]
+                plt.ylabel(f"{label} ({plot['unit']})")
+                plt.xlabel("Time (s)")
+                ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
+                ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+                plt.title("Transient simulation")
+                ax.grid(True, which="major")
+                ax.grid(True, which="minor", linestyle=":")
+                ax.minorticks_on()
+                ax.legend()
 
-            for signal in signals:
-                ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+    if all_traces["dc"]:
+        # dc sweep simulations plot
+        for label, plot in all_traces["dc"].items():
+            if not plot["traces"]:
+                continue
 
-            plt.ylabel(plot["label"])
-            plt.xlabel("Time (s)")
-            ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
-            ax.yaxis.set_major_formatter(plot["y_axis_formatter"])
-            plt.title("Transient simulation")
-            ax.grid(True, which="major")
-            ax.grid(True, which="minor", linestyle=":")
-            ax.minorticks_on()
-            ax.legend()
+            fig, ax = plt.subplots()
+            for trace in plot["traces"]:
+                signals = [key for key in trace.keys() if key != "PARAM"]
 
-    plt.legend()
-    plt.show()
+                for signal in signals:
+                    ax.plot(trace["PARAM"], trace[signal], label=signal[2:-1])
+
+                plt.ylabel(f"{label} ({plot['unit']})")
+                ax.xaxis.set_major_formatter(EngFormatter())
+                ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+                plt.title("DC sweep simulation")
+                ax.grid(True, which="major")
+                ax.grid(True, which="minor", linestyle=":")
+                ax.minorticks_on()
+                ax.legend()
+
+        plt.show()
 
 
 if __name__ == "__main__":
