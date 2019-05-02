@@ -8,7 +8,9 @@ from matplotlib.ticker import EngFormatter
 @click.argument("input", type=click.File("r"))
 def cli(input):
     tran_flag = False
-    all_traces = []
+    all_traces = {
+        "tran": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}}
+    }
 
     for line in input.readlines():
         if "TRANSIENT ANALYSIS" in line:
@@ -36,7 +38,8 @@ def cli(input):
             elif data_flag and counter == 2:
                 if "Y" in line:
                     tran_flag = False
-                    all_traces.append(trace)
+                    trace_type = headers[-1][0]
+                    all_traces["tran"][trace_type]["traces"].append(trace)
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
@@ -45,54 +48,29 @@ def cli(input):
     print(all_traces)
 
     # transient simulations plot
-    tran_traces = [trace for trace in all_traces if "TIME" in trace.keys()]
+    if all_traces["tran"]:
+        for label, plot in all_traces["tran"].items():
+            if not plot["traces"]:
+                continue
 
-    v_tran_traces = []
-    i_tran_traces = []
-    for trace in tran_traces:
-        for key in trace.keys():
-            if "V(" in key:
-                v_tran_traces.append(trace)
-                break
-            elif "I(" in key:
-                i_tran_traces.append(trace)
-                break
+            fig, ax = plt.subplots()
+            for trace in plot["traces"]:
+                signals = [key for key in trace.keys() if key != "TIME"]
 
-    tran_plots = [
-        {
-            "traces": v_tran_traces,
-            "label": "V (V)",
-            "y_axis_formatter": EngFormatter(unit="V"),
-        },
-        {
-            "traces": i_tran_traces,
-            "label": "I (A)",
-            "y_axis_formatter": EngFormatter(unit="A"),
-        },
-    ]
-    for plot in tran_plots:
-        if not plot["traces"]:
-            continue
+                for signal in signals:
+                    ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
 
-        fig, ax = plt.subplots()
-        for trace in plot["traces"]:
-            signals = [key for key in trace.keys() if key != "TIME"]
+                plt.ylabel(f"{label} ({plot['unit']})")
+                plt.xlabel("Time (s)")
+                ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
+                ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+                plt.title("Transient simulation")
+                ax.grid(True, which="major")
+                ax.grid(True, which="minor", linestyle=":")
+                ax.minorticks_on()
+                ax.legend()
 
-            for signal in signals:
-                ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
-
-            plt.ylabel(plot["label"])
-            plt.xlabel("Time (s)")
-            ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
-            ax.yaxis.set_major_formatter(plot["y_axis_formatter"])
-            plt.title("Transient simulation")
-            ax.grid(True, which="major")
-            ax.grid(True, which="minor", linestyle=":")
-            ax.minorticks_on()
-            ax.legend()
-
-    plt.legend()
-    plt.show()
+        plt.show()
 
 
 if __name__ == "__main__":
