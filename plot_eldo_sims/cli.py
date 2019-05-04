@@ -13,10 +13,7 @@ def cli(input):
     all_traces = {
         "tran": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
         "dc": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
-        "ac": {
-            "Mag": {"unit": "db", "traces": []},
-            "Phase": {"unit": "°", "traces": []},
-        },
+        "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
     }
 
     for line in input.readlines():
@@ -102,7 +99,7 @@ def cli(input):
 
             elif "HERTZ" in line:
                 headers = [print_legends.get(header, header) for header in line.split()]
-                trace = {header: [] for header in headers}
+                traces = {header: [] for header in headers}
 
                 data_flag = True
                 counter = 0
@@ -119,11 +116,11 @@ def cli(input):
                     elif trace_type == "P":
                         trace_type = "Phase"
 
-                    all_traces["ac"][trace_type]["traces"].append(trace)
+                    all_traces["ac"][trace_type]["plots"].append({"traces": traces})
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
-                        trace[header].append(float(value))
+                        traces[header].append(float(value))
 
     print(all_traces)
 
@@ -173,26 +170,30 @@ def cli(input):
                 ax.legend()
 
     if all_traces["ac"]:
-        for label, plot in all_traces["ac"].items():
-            if not plot["traces"]:
+        for label, plot_type in all_traces["ac"].items():
+            if not plot_type["plots"]:
                 continue
 
-            fig, ax = plt.subplots()
-            for trace in plot["traces"]:
-                signals = [key for key in trace.keys() if key != "HERTZ"]
+            for plot in plot_type["plots"]:
+                fig, ax = plt.subplots()
 
-                for signal in signals:
+                signals = [
+                    signal for signal in plot["traces"].items() if signal[0] != "HERTZ"
+                ]
+                freq = plot["traces"]["HERTZ"]
+
+                for signal_name, signal_values in signals:
                     label = (
-                        signal.replace("(", " ")
+                        signal_name.replace("(", " ")
                         .replace(")", " ")
                         .replace(",", "-")
                         .split()[-1]
                     )
-                    ax.plot(trace["HERTZ"], trace[signal], label=label)
+                    ax.plot(freq, signal_values, label=label)
 
-                plt.ylabel(f"{label} ({plot['unit']})")
+                plt.ylabel(f"{label} ({plot_type['unit']})")
                 plt.xlabel("Freq (Hz)")
-                ax.set_xscale('log')
+                ax.set_xscale("log")
                 ax.xaxis.set_major_formatter(EngFormatter())
                 plt.title("AC Analysis")
                 ax.grid(True, which="major")
