@@ -11,8 +11,8 @@ def cli(input):
     dc_flag = False
     ac_flag = False
     sim_results = {
-        "tran": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
-        "dc": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
+        "tran": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
+        "dc": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
         "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
     }
 
@@ -47,7 +47,7 @@ def cli(input):
 
             elif "TIME" in line:
                 headers = [print_legends.get(header, header) for header in line.split()]
-                trace = {header: [] for header in headers}
+                traces = {header: [] for header in headers}
 
                 data_flag = True
                 counter = 0
@@ -59,11 +59,11 @@ def cli(input):
                 if "Y" in line:
                     tran_flag = False
                     trace_type = headers[-1][0]
-                    sim_results["tran"][trace_type]["traces"].append(trace)
+                    sim_results["tran"][trace_type]["plots"].append({"traces": traces})
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
-                        trace[header].append(float(value))
+                        traces[header].append(float(value))
 
         elif dc_flag:
             if "Print_Legend" in line:
@@ -73,7 +73,7 @@ def cli(input):
 
             elif "PARAM" in line:
                 headers = [print_legends.get(header, header) for header in line.split()]
-                trace = {header: [] for header in headers}
+                traces = {header: [] for header in headers}
 
                 data_flag = True
                 counter = 0
@@ -85,11 +85,11 @@ def cli(input):
                 if "Y" in line:
                     dc_flag = False
                     trace_type = headers[-1][0]
-                    sim_results["dc"][trace_type]["traces"].append(trace)
+                    sim_results["dc"][trace_type]["plots"].append({"traces": traces})
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
-                        trace[header].append(float(value))
+                        traces[header].append(float(value))
 
         elif ac_flag:
             if "Print_Legend" in line:
@@ -127,21 +127,25 @@ def cli(input):
     tran_results = {
         label: plot_type
         for label, plot_type in sim_results["tran"].items()
-        if plot_type["traces"]
+        if plot_type["plots"]
     }
 
-    for label, plot in tran_results.items():
-        fig, ax = plt.subplots()
-        for trace in plot["traces"]:
-            signals = [key for key in trace.keys() if key != "TIME"]
+    for label, plot_type in tran_results.items():
+        for plot in plot_type["plots"]:
+            fig, ax = plt.subplots()
 
-            for signal in signals:
-                ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+            time = plot["traces"]["TIME"]
+            signals = [
+                signal for signal in plot["traces"].items() if signal[0] != "TIME"
+            ]
 
-            plt.ylabel(f"{label} ({plot['unit']})")
+            for signal_name, signal_values in signals:
+                ax.plot(time, signal_values, label=signal_name[2:-1])
+
+            plt.ylabel(f"{label} ({plot_type['unit']})")
             plt.xlabel("Time (s)")
             ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
-            ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+            ax.yaxis.set_major_formatter(EngFormatter(unit=plot_type["unit"]))
             plt.title("Transient simulation")
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
@@ -151,20 +155,22 @@ def cli(input):
     dc_results = {
         label: plot_type
         for label, plot_type in sim_results["dc"].items()
-        if plot_type["traces"]
+        if plot_type["plots"]
     }
 
-    for label, plot in dc_results.items():
-        fig, ax = plt.subplots()
-        for trace in plot["traces"]:
-            signals = [key for key in trace.keys() if key != "PARAM"]
+    for label, plot_type in dc_results.items():
+        for plot in plot_type["plots"]:
+            fig, ax = plt.subplots()
 
-            for signal in signals:
-                ax.plot(trace["PARAM"], trace[signal], label=signal[2:-1])
+            param = plot["traces"]["PARAM"]
+            signals = [signal for signal in plot["traces"].items() if signal[0] != "PARAM"]
 
-            plt.ylabel(f"{label} ({plot['unit']})")
+            for signal_name, signal_values in signals:
+                ax.plot(param, signal_values, label=signal_name[2:-1])
+
+            plt.ylabel(f"{label} ({plot_type['unit']})")
             ax.xaxis.set_major_formatter(EngFormatter())
-            ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+            ax.yaxis.set_major_formatter(EngFormatter(unit=plot_type["unit"]))
             plt.title("DC sweep simulation")
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
@@ -181,10 +187,10 @@ def cli(input):
         for plot in plot_type["plots"]:
             fig, ax = plt.subplots()
 
+            freq = plot["traces"]["HERTZ"]
             signals = [
                 signal for signal in plot["traces"].items() if signal[0] != "HERTZ"
             ]
-            freq = plot["traces"]["HERTZ"]
 
             for signal_name, signal_values in signals:
                 label = (
