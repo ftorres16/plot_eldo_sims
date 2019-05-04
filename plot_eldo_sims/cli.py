@@ -10,7 +10,7 @@ def cli(input):
     tran_flag = False
     dc_flag = False
     ac_flag = False
-    all_traces = {
+    sim_results = {
         "tran": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
         "dc": {"V": {"unit": "V", "traces": []}, "I": {"unit": "A", "traces": []}},
         "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
@@ -59,7 +59,7 @@ def cli(input):
                 if "Y" in line:
                     tran_flag = False
                     trace_type = headers[-1][0]
-                    all_traces["tran"][trace_type]["traces"].append(trace)
+                    sim_results["tran"][trace_type]["traces"].append(trace)
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
@@ -85,7 +85,7 @@ def cli(input):
                 if "Y" in line:
                     dc_flag = False
                     trace_type = headers[-1][0]
-                    all_traces["dc"][trace_type]["traces"].append(trace)
+                    sim_results["dc"][trace_type]["traces"].append(trace)
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
@@ -116,90 +116,94 @@ def cli(input):
                     elif trace_type == "P":
                         trace_type = "Phase"
 
-                    all_traces["ac"][trace_type]["plots"].append({"traces": traces})
+                    sim_results["ac"][trace_type]["plots"].append({"traces": traces})
                 else:
                     values = line.split()
                     for header, value in zip(headers, values):
                         traces[header].append(float(value))
 
-    print(all_traces)
+    print(sim_results)
 
-    if all_traces["tran"]:
-        # transient simulations plot
-        for label, plot in all_traces["tran"].items():
-            if not plot["traces"]:
-                continue
+    tran_results = {
+        label: plot_type
+        for label, plot_type in sim_results["tran"].items()
+        if plot_type["traces"]
+    }
 
+    for label, plot in tran_results.items():
+        fig, ax = plt.subplots()
+        for trace in plot["traces"]:
+            signals = [key for key in trace.keys() if key != "TIME"]
+
+            for signal in signals:
+                ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+
+            plt.ylabel(f"{label} ({plot['unit']})")
+            plt.xlabel("Time (s)")
+            ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
+            ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+            plt.title("Transient simulation")
+            ax.grid(True, which="major")
+            ax.grid(True, which="minor", linestyle=":")
+            ax.minorticks_on()
+            ax.legend()
+
+    dc_results = {
+        label: plot_type
+        for label, plot_type in sim_results["dc"].items()
+        if plot_type["traces"]
+    }
+
+    for label, plot in dc_results.items():
+        fig, ax = plt.subplots()
+        for trace in plot["traces"]:
+            signals = [key for key in trace.keys() if key != "PARAM"]
+
+            for signal in signals:
+                ax.plot(trace["PARAM"], trace[signal], label=signal[2:-1])
+
+            plt.ylabel(f"{label} ({plot['unit']})")
+            ax.xaxis.set_major_formatter(EngFormatter())
+            ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
+            plt.title("DC sweep simulation")
+            ax.grid(True, which="major")
+            ax.grid(True, which="minor", linestyle=":")
+            ax.minorticks_on()
+            ax.legend()
+
+    ac_results = {
+        label: plot_type
+        for label, plot_type in sim_results["ac"].items()
+        if plot_type["plots"]
+    }
+
+    for label, plot_type in ac_results.items():
+        for plot in plot_type["plots"]:
             fig, ax = plt.subplots()
-            for trace in plot["traces"]:
-                signals = [key for key in trace.keys() if key != "TIME"]
 
-                for signal in signals:
-                    ax.plot(trace["TIME"], trace[signal], label=signal[2:-1])
+            signals = [
+                signal for signal in plot["traces"].items() if signal[0] != "HERTZ"
+            ]
+            freq = plot["traces"]["HERTZ"]
 
-                plt.ylabel(f"{label} ({plot['unit']})")
-                plt.xlabel("Time (s)")
-                ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
-                ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
-                plt.title("Transient simulation")
-                ax.grid(True, which="major")
-                ax.grid(True, which="minor", linestyle=":")
-                ax.minorticks_on()
-                ax.legend()
+            for signal_name, signal_values in signals:
+                label = (
+                    signal_name.replace("(", " ")
+                    .replace(")", " ")
+                    .replace(",", "-")
+                    .split()[-1]
+                )
+                ax.plot(freq, signal_values, label=label)
 
-    if all_traces["dc"]:
-        # dc sweep simulations plot
-        for label, plot in all_traces["dc"].items():
-            if not plot["traces"]:
-                continue
-
-            fig, ax = plt.subplots()
-            for trace in plot["traces"]:
-                signals = [key for key in trace.keys() if key != "PARAM"]
-
-                for signal in signals:
-                    ax.plot(trace["PARAM"], trace[signal], label=signal[2:-1])
-
-                plt.ylabel(f"{label} ({plot['unit']})")
-                ax.xaxis.set_major_formatter(EngFormatter())
-                ax.yaxis.set_major_formatter(EngFormatter(unit=plot["unit"]))
-                plt.title("DC sweep simulation")
-                ax.grid(True, which="major")
-                ax.grid(True, which="minor", linestyle=":")
-                ax.minorticks_on()
-                ax.legend()
-
-    if all_traces["ac"]:
-        for label, plot_type in all_traces["ac"].items():
-            if not plot_type["plots"]:
-                continue
-
-            for plot in plot_type["plots"]:
-                fig, ax = plt.subplots()
-
-                signals = [
-                    signal for signal in plot["traces"].items() if signal[0] != "HERTZ"
-                ]
-                freq = plot["traces"]["HERTZ"]
-
-                for signal_name, signal_values in signals:
-                    label = (
-                        signal_name.replace("(", " ")
-                        .replace(")", " ")
-                        .replace(",", "-")
-                        .split()[-1]
-                    )
-                    ax.plot(freq, signal_values, label=label)
-
-                plt.ylabel(f"{label} ({plot_type['unit']})")
-                plt.xlabel("Freq (Hz)")
-                ax.set_xscale("log")
-                ax.xaxis.set_major_formatter(EngFormatter())
-                plt.title("AC Analysis")
-                ax.grid(True, which="major")
-                ax.grid(True, which="minor", linestyle=":")
-                ax.minorticks_on()
-                ax.legend()
+            plt.ylabel(f"{label} ({plot_type['unit']})")
+            plt.xlabel("Freq (Hz)")
+            ax.set_xscale("log")
+            ax.xaxis.set_major_formatter(EngFormatter())
+            plt.title("AC Analysis")
+            ax.grid(True, which="major")
+            ax.grid(True, which="minor", linestyle=":")
+            ax.minorticks_on()
+            ax.legend()
 
     plt.show()
 
