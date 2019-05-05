@@ -16,7 +16,14 @@ If you want more than one signal to be printed on the same pair of axes, you hav
 
 Run `plot_eldo_sims <path to your .chi file>` and wait for the plots to show.
 
-### Supported analyses
+## Supported analyses
 - tran
 - dc
 - ac
+
+## Related repos
+
+If you find this repo useful, there's a good chance you may want to check some of my other related work as well.
+
+- [tannner_to_eldo](https://github.com/ftorres16/tanner_to_eldo) can transform Tanner generated SPICE netlists into ELDO compatible ones.
+- [chi_to_json](https://github.com/ftorres16/chi_to_json) extracts the simulation data form an ELDO `chi` output file and writes it into an easier to handle JSON format.
