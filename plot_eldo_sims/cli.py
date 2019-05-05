@@ -3,124 +3,72 @@ import matplotlib.pyplot as plt
 
 from matplotlib.ticker import EngFormatter
 
+import re
+
+
+SIM_HEADERS = {
+    "TRANSIENT ANALYSIS": "tran",
+    "DC TRANSFER CURVES": "dc",
+    "AC ANALYSIS": "ac",
+}
+
 
 @click.command()
 @click.argument("input", type=click.File("r"))
 def cli(input):
-    tran_flag = False
-    dc_flag = False
-    ac_flag = False
+    sim_flag = False
     sim_results = {
         "tran": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
         "dc": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
         "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
     }
 
-    for line in input.readlines():
-        if "TRANSIENT ANALYSIS" in line:
-            tran_flag = True
-            dc_flag = False
-            ac_flag = False
+    all_lines = input.readlines()
+
+    for index, line in enumerate(all_lines):
+        if any(sim_header in line for sim_header in SIM_HEADERS):
+            sim_flag = True
+            sim_type = [
+                sim_type
+                for sim_header, sim_type in SIM_HEADERS.items()
+                if sim_header in line
+            ][0]
             data_flag = False
             print_legends = {}
             continue
 
-        elif "DC TRANSFER CURVES" in line:
-            tran_flag = False
-            dc_flag = True
-            ac_flag = False
-            data_flag = False
-            print_legends = {}
-
-        elif "AC ANALYSIS" in line:
-            tran_flag = False
-            dc_flag = False
-            ac_flag = True
-            data_flag = False
-            print_legends = {}
-
-        if tran_flag:
-            if "Print_Legend" in line:
-                legend = line.split()[-1]
-                header_name = line.split()[1][:-1]
+        if sim_flag:
+            if line.startswith("Print_Legend"):
+                # Gather all the print legends
+                legend_regex = r"Print_Legend (\d+): (\w+\(\w+(?:\.\w+)?\))"
+                header_name, legend = re.findall(legend_regex, line)[0]
                 print_legends[header_name] = legend
 
-            elif "TIME" in line:
-                headers = [print_legends.get(header, header) for header in line.split()]
+            elif "X" in line:
+                headers = [
+                    print_legends.get(header, header)
+                    for header in all_lines[index - 1].split()
+                ]
                 traces = {header: [] for header in headers}
-
                 data_flag = True
-                counter = 0
 
-            elif data_flag and counter < 2:
-                counter += 1
+            elif data_flag and "Y" not in line:
+                values = line.split()
+                for header, value in zip(headers, values):
+                    traces[header].append(float(value))
 
-            elif data_flag and counter == 2:
-                if "Y" in line:
-                    tran_flag = False
-                    trace_type = headers[-1][0]
-                    sim_results["tran"][trace_type]["plots"].append({"traces": traces})
-                else:
-                    values = line.split()
-                    for header, value in zip(headers, values):
-                        traces[header].append(float(value))
-
-        elif dc_flag:
-            if "Print_Legend" in line:
-                legend = line.split()[-1]
-                header_name = line.split()[1][:-1]
-                print_legends[header_name] = legend
-
-            elif "PARAM" in line:
-                headers = [print_legends.get(header, header) for header in line.split()]
-                traces = {header: [] for header in headers}
-
-                data_flag = True
-                counter = 0
-
-            elif data_flag and counter < 2:
-                counter += 1
-
-            elif data_flag and counter == 2:
-                if "Y" in line:
-                    dc_flag = False
-                    trace_type = headers[-1][0]
-                    sim_results["dc"][trace_type]["plots"].append({"traces": traces})
-                else:
-                    values = line.split()
-                    for header, value in zip(headers, values):
-                        traces[header].append(float(value))
-
-        elif ac_flag:
-            if "Print_Legend" in line:
-                legend = line.split()[-1]
-                header_name = line.split()[1][:-1]
-                print_legends[header_name] = legend
-
-            elif "HERTZ" in line:
-                headers = [print_legends.get(header, header) for header in line.split()]
-                traces = {header: [] for header in headers}
-
-                data_flag = True
-                counter = 0
-
-            elif data_flag and counter < 2:
-                counter += 1
-
-            elif data_flag and counter == 2:
-                if "Y" in line:
-                    ac_flag = False
+            elif data_flag:
+                sim_flag = False
+                data_flag = False
+                if sim_type == "ac":
                     trace_type = headers[-1].split("(")[0][1:]
                     if trace_type == "DB":
                         trace_type = "Mag"
                     elif trace_type == "P":
                         trace_type = "Phase"
-
-                    sim_results["ac"][trace_type]["plots"].append({"traces": traces})
                 else:
-                    values = line.split()
-                    for header, value in zip(headers, values):
-                        traces[header].append(float(value))
+                    trace_type = headers[-1][0]  # tran
+                sim_results[sim_type][trace_type]["plots"].append({"traces": traces})
 
     print(sim_results)
 
@@ -162,12 +110,16 @@ def cli(input):
         for plot in plot_type["plots"]:
             fig, ax = plt.subplots()
 
-            param = plot["traces"]["PARAM"]
-            signals = [signal for signal in plot["traces"].items() if signal[0] != "PARAM"]
+            x_header = [header for header in plot["traces"].keys() if "(" not in header][0]
+            param = plot["traces"][x_header]
+            signals = [
+                signal for signal in plot["traces"].items() if signal[0] != x_header
+            ]
 
             for signal_name, signal_values in signals:
                 ax.plot(param, signal_values, label=signal_name[2:-1])
 
+            plt.xlabel(f"{x_header}")
             plt.ylabel(f"{label} ({plot_type['unit']})")
             ax.xaxis.set_major_formatter(EngFormatter())
             ax.yaxis.set_major_formatter(EngFormatter(unit=plot_type["unit"]))
