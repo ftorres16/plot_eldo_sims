@@ -32,6 +32,16 @@ def cli(input):
         for label, plot_type in sim_results["tran"].items()
         if plot_type["plots"]
     }
+    dc_results = {
+        label: plot_type
+        for label, plot_type in sim_results["dc"].items()
+        if plot_type["plots"]
+    }
+    ac_results = {
+        label: plot_type
+        for label, plot_type in sim_results["ac"].items()
+        if plot_type["plots"]
+    }
 
     for label, plot_type in tran_results.items():
         for plot in plot_type["plots"]:
@@ -54,12 +64,6 @@ def cli(input):
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
             ax.legend()
-
-    dc_results = {
-        label: plot_type
-        for label, plot_type in sim_results["dc"].items()
-        if plot_type["plots"]
-    }
 
     for label, plot_type in dc_results.items():
         for plot in plot_type["plots"]:
@@ -85,12 +89,6 @@ def cli(input):
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
             ax.legend()
-
-    ac_results = {
-        label: plot_type
-        for label, plot_type in sim_results["ac"].items()
-        if plot_type["plots"]
-    }
 
     for label, plot_type in ac_results.items():
         for plot in plot_type["plots"]:
