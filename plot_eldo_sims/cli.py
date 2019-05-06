@@ -15,7 +15,8 @@ SIM_HEADERS = {
 
 @click.command()
 @click.argument("input", type=click.File("r"))
-def cli(input):
+@click.option("--force_same_axes/--no_force_same_axes", default=False)
+def cli(input, force_same_axes):
     """
     Expected JSON format:
 
@@ -44,8 +45,12 @@ def cli(input):
     }
 
     for label, plot_type in tran_results.items():
-        for plot in plot_type["plots"]:
+        if force_same_axes:
             fig, ax = plt.subplots()
+
+        for plot in plot_type["plots"]:
+            if not force_same_axes:
+                fig, ax = plt.subplots()
 
             time = plot["traces"]["TIME"]
             signals = [
@@ -66,8 +71,12 @@ def cli(input):
             ax.legend()
 
     for label, plot_type in dc_results.items():
-        for plot in plot_type["plots"]:
+        if force_same_axes:
             fig, ax = plt.subplots()
+
+        for plot in plot_type["plots"]:
+            if not force_same_axes:
+                fig, ax = plt.subplots()
 
             x_header = [
                 header for header in plot["traces"].keys() if "(" not in header
@@ -91,8 +100,12 @@ def cli(input):
             ax.legend()
 
     for label, plot_type in ac_results.items():
-        for plot in plot_type["plots"]:
+        if force_same_axes:
             fig, ax = plt.subplots()
+
+        for plot in plot_type["plots"]:
+            if not force_same_axes:
+                fig, ax = plt.subplots()
 
             freq = plot["traces"]["HERTZ"]
             signals = [
