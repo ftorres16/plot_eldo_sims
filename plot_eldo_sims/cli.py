@@ -16,7 +16,8 @@ SIM_HEADERS = {
 @click.command()
 @click.argument("input", type=click.File("r"))
 @click.option("--force_same_axes/--no_force_same_axes", default=False)
-def cli(input, force_same_axes):
+@click.option("--legends/--no_legends", default=True)
+def cli(input, force_same_axes, legends):
     """
     Expected JSON format:
 
@@ -68,7 +69,8 @@ def cli(input, force_same_axes):
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
-            ax.legend()
+            if legends:
+                ax.legend()
 
     for label, plot_type in dc_results.items():
         if force_same_axes:
@@ -97,7 +99,8 @@ def cli(input, force_same_axes):
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
-            ax.legend()
+            if legends:
+                ax.legend()
 
     for label, plot_type in ac_results.items():
         if force_same_axes:
@@ -129,7 +132,8 @@ def cli(input, force_same_axes):
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
-            ax.legend()
+            if legends:
+                ax.legend()
 
     plt.show()
 
