@@ -5,7 +5,7 @@ setup(
     version="0.1",
     py_modules=["plot_eldo_sims"],
     include_package_data=True,
-    install_requires=["click", "matplotlib"],
+    install_requires=["click", "matplotlib", "jsonschema"],
     entry_points="""
         [console_scripts]
         plot_eldo_sims=plot_eldo_sims.cli:cli
