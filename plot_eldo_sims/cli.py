@@ -1,6 +1,8 @@
 import json
+import os
 
 import click
+import jsonschema
 import matplotlib.pyplot as plt
 
 from matplotlib.ticker import EngFormatter
@@ -12,6 +14,8 @@ SIM_HEADERS = {
     "AC ANALYSIS": "ac",
 }
 
+JSON_SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "jsonschema.json")
+
 
 @click.command()
 @click.argument("input", type=click.File("r"))
@@ -20,115 +24,73 @@ SIM_HEADERS = {
 def cli(input, force_same_axes, legends):
     """
     Expected JSON format:
-
-    {
-        "tran": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
-        "dc": {"V": {"unit": "V", "plots": []}, "I": {"unit": "A", "plots": []}},
-        "ac": {"Mag": {"unit": "db", "plots": []}, "Phase": {"unit": "°", "plots": []}},
-    }
+        [
+            {
+                "sim_type": "tran",
+                "name": "RC circuit simulation",
+                "plots": [
+                    [
+                        {
+                            "name": "time",
+                            "unit": "s",
+                            "data": [1,2,3,4]
+                        },
+                        {
+                            "name": "N_1",
+                            "unit": "V",
+                            "data": [1.0,2.0,3.0,4.0]
+                        }
+                    ]
+                ]
+            }
+        ]
     """
     sim_results = json.load(input)
 
-    tran_results = {
-        label: plot_type
-        for label, plot_type in sim_results["tran"].items()
-        if plot_type["plots"]
-    }
-    dc_results = {
-        label: plot_type
-        for label, plot_type in sim_results["dc"].items()
-        if plot_type["plots"]
-    }
-    ac_results = {
-        label: plot_type
-        for label, plot_type in sim_results["ac"].items()
-        if plot_type["plots"]
-    }
+    with open(JSON_SCHEMA_PATH) as f:
+        schema = json.load(f)
+    try:
+        jsonschema.validate(sim_results, schema)
+    except jsonschema.ValidationError:
+        click.echo("Could not walidate JSON schema", err=True)
+        return
 
-    for label, plot_type in tran_results.items():
+    for sim_result in sim_results:
+        sim_type = sim_result["sim_type"]
         if force_same_axes:
             fig, ax = plt.subplots()
 
-        for plot in plot_type["plots"]:
+        for plot in sim_result["plots"]:
             if not force_same_axes:
                 fig, ax = plt.subplots()
 
-            time = plot["traces"]["TIME"]
-            signals = [
-                signal for signal in plot["traces"].items() if signal[0] != "TIME"
-            ]
+            x_var = plot[0]
+            for y_var in plot[1:]:
+                ax.plot(x_var["data"], y_var["data"], label=y_var["name"])
 
-            for signal_name, signal_values in signals:
-                ax.plot(time, signal_values, label=signal_name[2:-1])
+            if "unit" in x_var:
+                plt.xlabel(f"{x_var['name']} ({x_var['unit']})")
+                ax.xaxis.set_major_formatter(EngFormatter(unit=x_var["unit"]))
+            else:
+                plt.xlabel(f"{x_var['name']}")
+                ax.xaxis.set_major_formatter(EngFormatter())
 
-            plt.ylabel(f"{label} ({plot_type['unit']})")
-            plt.xlabel("Time (s)")
-            ax.xaxis.set_major_formatter(EngFormatter(unit="s"))
-            ax.yaxis.set_major_formatter(EngFormatter(unit=plot_type["unit"]))
-            plt.title("Transient simulation")
-            ax.grid(True, which="major")
-            ax.grid(True, which="minor", linestyle=":")
-            ax.minorticks_on()
-            if legends:
-                ax.legend()
+            num_y_units = len(
+                set([y_var["unit"] for y_var in plot[1:] if "unit" in y_var])
+            )
+            if num_y_units == 1:
+                plt.ylabel(f"{y_var['name']} ({y_var['unit']})")
+                ax.yaxis.set_major_formatter(EngFormatter(unit=y_var["unit"]))
+            else:
+                if num_y_units > 1:
+                    click.echo(f"More than one unit for Y axis.", err=True)
+                plt.ylabel(f"{y_var['name']}")
+                ax.yaxis.set_major_formatter(EngFormatter())
 
-    for label, plot_type in dc_results.items():
-        if force_same_axes:
-            fig, ax = plt.subplots()
+            if sim_type == "ac":
+                ax.set_xscale("log")
 
-        for plot in plot_type["plots"]:
-            if not force_same_axes:
-                fig, ax = plt.subplots()
-
-            x_header = [
-                header for header in plot["traces"].keys() if "(" not in header
-            ][0]
-            param = plot["traces"][x_header]
-            signals = [
-                signal for signal in plot["traces"].items() if signal[0] != x_header
-            ]
-
-            for signal_name, signal_values in signals:
-                ax.plot(param, signal_values, label=signal_name[2:-1])
-
-            plt.xlabel(f"{x_header}")
-            plt.ylabel(f"{label} ({plot_type['unit']})")
-            ax.xaxis.set_major_formatter(EngFormatter())
-            ax.yaxis.set_major_formatter(EngFormatter(unit=plot_type["unit"]))
-            plt.title("DC sweep simulation")
-            ax.grid(True, which="major")
-            ax.grid(True, which="minor", linestyle=":")
-            ax.minorticks_on()
-            if legends:
-                ax.legend()
-
-    for label, plot_type in ac_results.items():
-        if force_same_axes:
-            fig, ax = plt.subplots()
-
-        for plot in plot_type["plots"]:
-            if not force_same_axes:
-                fig, ax = plt.subplots()
-
-            freq = plot["traces"]["HERTZ"]
-            signals = [
-                signal for signal in plot["traces"].items() if signal[0] != "HERTZ"
-            ]
-
-            for signal_name, signal_values in signals:
-                label = (
-                    signal_name.replace("(", " ")
-                    .replace(")", " ")
-                    .replace(",", "-")
-                    .split()[-1]
-                )
-                ax.plot(freq, signal_values, label=label)
-
-            plt.ylabel(f"{label} ({plot_type['unit']})")
-            plt.xlabel("Freq (Hz)")
-            ax.set_xscale("log")
-            ax.xaxis.set_major_formatter(EngFormatter())
-            plt.title("AC Analysis")
+            plt.title(f"{sim_type} simulation")
             ax.grid(True, which="major")
             ax.grid(True, which="minor", linestyle=":")
             ax.minorticks_on()
